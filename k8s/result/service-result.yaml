@@ -1,0 +1,25 @@
+## Para MINIKUBE !!
+
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: result
+# spec:
+#   type: NodePort
+#   selector:
+#     app: result
+#   ports:
+#     - port: 3000
+#       targetPort: 3000
+
+## Para EKS !!
+apiVersion: v1
+kind: Service
+metadata:
+  name: result
+spec:
+  type: LoadBalancer
+  selector:
+    app: result
+  ports:
+    - port: 3000
