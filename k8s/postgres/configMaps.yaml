@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: host-config
 data:
-  REDIS_HOST: voting-app-redis.7ef5ck.0001.use2.cache.amazonaws.com
+  REDIS_HOST: REDIS
   DATABASE_HOST: voting-app-postgres.cj44ye4qacfa.us-east-2.rds.amazonaws.com
