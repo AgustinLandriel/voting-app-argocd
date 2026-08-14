@@ -4,4 +4,4 @@ metadata:
   name: host-config
 data:
   REDIS_HOST: redis
-  DATABASE_HOST: voting-app-postgres.cj44ye4qacfa.us-east-2.rds.amazonaws.com
+  DATABASE_HOST: voting-app-db.cj44ye4qacfa.us-east-2.rds.amazonaws.com
