@@ -47,5 +47,5 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_DB
-            - name: PGSSL_SSLMODE
+            - name: PGSSLMODE
               value: "no-verify"
