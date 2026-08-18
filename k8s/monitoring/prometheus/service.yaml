@@ -1,0 +1,17 @@
+## NUNCA type: LoadBalancer. En EKS un Service LoadBalancer crea un ELB
+## fuera del state de Terraform: no aparece en el plan, no se destruye con
+## terraform destroy, y factura ~18 USD/mes en silencio.
+## Acceso siempre por kubectl port-forward.
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: voting-app-monitoring
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AgustinLandriel/voting-app-argocd.git
+    targetRevision: HEAD
+    path: k8s/monitoring
+    directory:
+      ## SIN ESTO ArgoCD sincroniza solo namespace.yaml y reporta
+      ## Synced + Healthy con cero pods. Es el bug mas probable.
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+      external_labels:
+        cluster: minikube
+
+    scrape_configs:
+      ## 1) Prometheus se scrapea a si mismo: smoke test del propio pod.
+      - job_name: prometheus
+        static_configs:
+          - targets: ['localhost:9090']
+
+      ## 2) Descubrimiento por anotaciones sobre los Services del cluster.
+      - job_name: kubernetes-service-endpoints
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          ## keep = descarta todo lo que no matchee. Sin esto Prometheus
+          ## intentaria scrapear TODOS los endpoints (kube-dns, redis...).
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+
+          ## __address__ llega como "10.244.0.7:80"; parte host y puerto.
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+          ## job = nombre del Service. Esto es lo que despues distingue
+          ## database_connection_status{job="result"} de {job="app-vote-service"}.
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: job
