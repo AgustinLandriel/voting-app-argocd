@@ -76,12 +76,24 @@ spec:
             ## Si editas el ConfigMap despues: rollout restart.
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            ## Los JSON de los dashboards. Grafana re-lee esta carpeta cada
+            ## 30s (updateIntervalSeconds del provider), sin reiniciar.
+            - name: dashboards
+              mountPath: /etc/grafana/dashboards
             - name: data
               mountPath: /var/lib/grafana
       volumes:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data

@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+## Todos los objetos de este stack viven en el namespace monitoring.
+namespace: monitoring
+
+resources:
+  - namespace.yaml
+  - prometheus/rbac.yaml
+  - prometheus/configMaps.yaml
+  - prometheus/pvc.yaml
+  - prometheus/deployment.yaml
+  - prometheus/service.yaml
+  - grafana/datasource.yaml
+  - grafana/provider.yaml
+  - grafana/pvc.yaml
+  - grafana/deployment.yaml
+  - grafana/service.yaml
+
+## Aca esta la gracia: kustomize arma el ConfigMap "grafana-dashboards"
+## leyendo los .json de dashboards/. La CLAVE de cada entrada es el nombre
+## del archivo, igual que si lo hubieramos escrito a mano.
+configMapGenerator:
+  - name: grafana-dashboards
+    files:
+      - grafana/dashboards/negocio.json
+      - grafana/dashboards/tecnico.json
+
+generatorOptions:
+  ## Por defecto kustomize le pega un hash al nombre del ConfigMap
+  ## (grafana-dashboards-7f8b9c2d). Eso fuerza un rollout del pod en cada
+  ## cambio de dashboard. No lo queremos: el provider ya re-lee la carpeta
+  ## cada 30s, asi que un cambio se ve solo, sin reiniciar nada.
+  disableNameSuffixHash: true

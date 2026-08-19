@@ -1,0 +1,152 @@
+{
+  "uid": "voting-tecnico",
+  "title": "Voting App - Tecnico",
+  "tags": ["voting-app"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Targets UP",
+      "description": "Cuantos endpoints esta scrapeando Prometheus con exito. Esperado: 7.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum(up)", "legendFormat": "UP" } ],
+      "fieldConfig": {
+        "defaults": { "decimals": 0, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }, { "color": "green", "value": 7 } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Targets caidos",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "count(up == 0) or vector(0)", "legendFormat": "DOWN" } ],
+      "fieldConfig": {
+        "defaults": { "decimals": 0, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Series en la TSDB",
+      "description": "Cuantas series unicas guarda Prometheus. Si esto se dispara, el PVC se llena.",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "prometheus_tsdb_head_series", "legendFormat": "series" } ],
+      "fieldConfig": {
+        "defaults": { "decimals": 0, "unit": "short", "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none", "graphMode": "area", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests por segundo",
+      "description": "rate() sobre counters: detecta los resets por reinicio de pod. NUNCA graficar un counter crudo.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (job) (rate(flask_http_request_total[5m]))", "legendFormat": "vote" },
+        { "refId": "B", "expr": "sum by (job) (rate(http_requests_total[5m]))", "legendFormat": "result" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps", "decimals": 2, "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "showPoints": "never", "pointSize": 8,
+            "gradientMode": "none", "spanNulls": true, "axisSoftMin": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latencia p95",
+      "description": "Percentil 95 del histograma. Panel aparte y NO en el mismo eje que requests/s: escalas distintas nunca comparten eje.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "{{job}}" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(flask_http_request_duration_seconds_bucket[5m])))", "legendFormat": "vote" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s", "decimals": 3, "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "pointSize": 8,
+            "gradientMode": "none", "spanNulls": true, "axisSoftMin": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memoria residente por pod",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "process_resident_memory_bytes", "legendFormat": "{{job}} / {{pod}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes", "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "pointSize": 8,
+            "gradientMode": "none", "spanNulls": true, "axisSoftMin": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU por pod",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(process_cpu_seconds_total[5m])", "legendFormat": "{{job}} / {{pod}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "decimals": 3, "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "pointSize": 8,
+            "gradientMode": "none", "spanNulls": true, "axisSoftMin": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    }
+  ]
+}

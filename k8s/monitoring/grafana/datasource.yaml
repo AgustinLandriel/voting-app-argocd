@@ -11,6 +11,9 @@ data:
     datasources:
       - name: Prometheus
         type: prometheus
+        ## uid FIJO: los dashboards lo referencian por este valor.
+        ## Sin esto Grafana genera uno aleatorio y los paneles quedan huerfanos.
+        uid: prometheus
         access: proxy
         ## "prometheus" a secas resuelve porque Grafana vive en el MISMO
         ## namespace. Si estuviera en otro seria prometheus.monitoring.svc

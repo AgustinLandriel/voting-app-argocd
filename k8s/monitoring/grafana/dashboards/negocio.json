@@ -1,0 +1,119 @@
+{
+  "uid": "voting-negocio",
+  "title": "Voting App - Negocio",
+  "tags": ["voting-app"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Total de votos",
+      "description": "Un solo numero: no necesita grafico. max() y no sum() porque las 2 replicas de result leen la MISMA base y reportan el mismo valor.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(votes_in_database_total)", "legendFormat": "Total" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none", "graphMode": "area", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Votos por opcion",
+      "description": "Bar gauge y no pie: comparar largos es mas preciso que comparar angulos.",
+      "gridPos": { "h": 5, "w": 10, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max by (option) (votes_by_option)", "legendFormat": "{{option}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "min": 0, "decimals": 0, "unit": "short", "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal", "displayMode": "basic", "showUnfilled": true,
+        "valueMode": "color", "namePlacement": "left",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Conexion a la base",
+      "description": "min by (job): si CUALQUIER pod del servicio esta caido, se muestra caido. Texto ademas del color: nunca color solo.",
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "min by (job) (database_connection_status)", "legendFormat": "{{job}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [ { "type": "value", "options": {
+            "0": { "text": "CAIDO", "index": 0 },
+            "1": { "text": "OK", "index": 1 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Evolucion de votos por opcion",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max by (option) (votes_by_option)", "legendFormat": "{{option}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0, "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "showPoints": "never", "pointSize": 8,
+            "gradientMode": "none", "spanNulls": true, "axisSoftMin": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Conexion a Redis",
+      "description": "OJO: este gauge solo se actualiza cuando el pod procesa un voto. Con poco trafico da FALSOS POSITIVOS. No alertar sobre esto tal como esta instrumentado.",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "min by (job) (redis_connection_status)", "legendFormat": "{{job}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [ { "type": "value", "options": {
+            "0": { "text": "SIN DATOS", "index": 0 },
+            "1": { "text": "OK", "index": 1 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "orange", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "justifyMode": "center"
+      }
+    }
+  ]
+}

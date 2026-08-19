@@ -9,10 +9,9 @@ spec:
     repoURL: https://github.com/AgustinLandriel/voting-app-argocd.git
     targetRevision: HEAD
     path: k8s/monitoring
-    directory:
-      ## SIN ESTO ArgoCD sincroniza solo namespace.yaml y reporta
-      ## Synced + Healthy con cero pods. Es el bug mas probable.
-      recurse: true
+    ## Hay un kustomization.yaml en ese path, asi que ArgoCD corre
+    ## "kustomize build" en vez de leer los YAML sueltos. Por eso ya no
+    ## hace falta directory.recurse: true (y seria ignorado igual).
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
