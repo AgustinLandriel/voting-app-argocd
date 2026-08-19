@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  ## Mismo patron que el ConfigMap de Prometheus: la CLAVE es el nombre
+  ## del archivo, el VALOR (despues del |) es su contenido crudo.
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        ## "prometheus" a secas resuelve porque Grafana vive en el MISMO
+        ## namespace. Si estuviera en otro seria prometheus.monitoring.svc
+        url: http://prometheus:9090
+        isDefault: true
+        ## editable: false = no se puede romper desde la UI.
+        ## La fuente de verdad es este archivo, no la base de Grafana.
+        editable: false
