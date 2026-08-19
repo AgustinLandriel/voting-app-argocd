@@ -1,0 +1,34 @@
+## Promtail necesita preguntarle a la API de Kubernetes que pods existen.
+## Sin estos tres objetos recibe 403 y no descubre nada.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  ## La IDENTIDAD con la que el pod se presenta ante la API.
+  name: promtail
+  namespace: monitoring
+---
+## ClusterRole y no Role: Promtail descubre pods de TODOS los namespaces,
+## no solo de monitoring. Un Role solo alcanza a su propio namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+    ## Solo lectura. Promtail nunca modifica nada del cluster.
+    verbs: ["get", "watch", "list"]
+---
+## El VINCULO: le da a la identidad de arriba los permisos del medio.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: promtail
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: monitoring

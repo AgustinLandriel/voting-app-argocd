@@ -22,3 +22,16 @@ data:
         ## editable: false = no se puede romper desde la UI.
         ## La fuente de verdad es este archivo, no la base de Grafana.
         editable: false
+
+      ## Loki es un datasource INDEPENDIENTE de Prometheus. No dependen
+      ## entre si: comparten el modelo de labels y conviven en Grafana.
+      - name: Loki
+        type: loki
+        ## uid fijo, mismo criterio que arriba: si despues armas un
+        ## dashboard de logs, lo va a referenciar por este valor.
+        uid: loki
+        access: proxy
+        ## "loki" a secas resuelve porque vive en el MISMO namespace.
+        url: http://loki:3100
+        ## isDefault queda en Prometheus: Explore abre ahi por defecto.
+        editable: false

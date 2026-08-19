@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+
+    ## Anota hasta que byte leyo de cada archivo. Si el pod se reinicia,
+    ## retoma desde ahi en vez de reenviar todo y duplicar los logs.
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    ## A donde empuja. Loki es PASIVO: nunca va a buscar nada,
+    ## solo recibe POST en este endpoint.
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        ## Service discovery: en vez de una lista escrita a mano, le
+        ## pregunta a la API que pods hay. Mismo mecanismo que Prometheus.
+        kubernetes_sd_configs:
+          - role: pod
+
+        ## containerd escribe en formato CRI:
+        ##   2026-08-19T15:42:01Z stdout F el mensaje real
+        ## Sin este stage guardarias el timestamp y las banderas
+        ## como si fueran parte del mensaje.
+        pipeline_stages:
+          - cri: {}
+
+        relabel_configs:
+          ## Estos 4 son los LABELS con los que despues buscas en LogQL.
+          ## Nada de alta cardinalidad aca: cada combinacion unica de
+          ## labels crea un STREAM nuevo, y miles de streams tumban a Loki.
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+
+          ## __path__ le dice a Promtail QUE archivo leer. Los labels que
+          ## empiezan con __ son internos: se usan en el procesamiento y
+          ## despues se descartan, nunca llegan a Loki.
+          ## Se arma como: /var/log/pods/<uid>/<contenedor>/*.log
+          - source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            separator: /
+            action: replace
+            replacement: /var/log/pods/*$1/*.log
+            target_label: __path__

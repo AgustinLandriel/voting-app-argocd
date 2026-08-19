@@ -1,0 +1,73 @@
+## DaemonSet y no Deployment: los logs viven en el disco de CADA nodo
+## (/var/log/pods). Un Deployment con 1 replica solo veria los de su nodo.
+## El DaemonSet garantiza exactamente un pod por nodo, automaticamente.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      ## Usa la identidad definida en rbac.yaml para hablar con la API.
+      serviceAccountName: promtail
+      containers:
+        ## Promtail esta EOL: su sucesor oficial es Grafana Alloy.
+        ## Por eso queda en 3.6.11 mientras Loki sigue en 3.6.15.
+        ## El skew no importa: solo hablan por la API HTTP de push.
+        - name: promtail
+          image: grafana/promtail:3.6.11
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          env:
+            ## Promtail filtra por nodo usando HOSTNAME. Sin esto, todos
+            ## los pods del DaemonSet intentarian leer lo mismo.
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: http
+              containerPort: 9080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+            - name: positions
+              mountPath: /run/promtail
+            ## /var/log/pods son SYMLINKS que apuntan a /var/log/containers
+            ## y de ahi al storage de containerd. Hay que montar los dos
+            ## lados o los symlinks quedan rotos y no lee nada.
+            - name: pods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: containers
+              mountPath: /var/lib/containerd
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        ## emptyDir: vive lo que vive el pod. Alcanza para el positions,
+        ## en el peor caso reenvia un rato de logs al reiniciar.
+        - name: positions
+          emptyDir: {}
+        ## hostPath: monta un directorio del NODO dentro del pod.
+        ## Es lo que le da acceso al disco real de la maquina.
+        - name: pods
+          hostPath:
+            path: /var/log/pods
+        - name: containers
+          hostPath:
+            path: /var/lib/containerd

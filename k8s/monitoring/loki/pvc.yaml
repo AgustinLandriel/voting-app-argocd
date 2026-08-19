@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: monitoring
+  annotations:
+    ## Mismo criterio que prometheus-data y grafana-data:
+    ## que ArgoCD no borre el PVC si el recurso sale del repo.
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes:
+    ## ReadWriteOnce = un solo nodo puede montarlo para escritura.
+    ## Es lo que obliga al strategy: Recreate del Deployment.
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

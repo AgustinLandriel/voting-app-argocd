@@ -17,6 +17,19 @@ resources:
   - grafana/deployment.yaml
   - grafana/service.yaml
 
+  ## Loki: recibe y guarda los logs. Orden: config y disco primero,
+  ## despues el workload, al final como se lo expone.
+  - loki/configMaps.yaml
+  - loki/pvc.yaml
+  - loki/deployment.yaml
+  - loki/service.yaml
+
+  ## Promtail: el agente que lee los logs del nodo y se los empuja a Loki.
+  ## rbac primero: sin la ServiceAccount el DaemonSet no arranca.
+  - promtail/rbac.yaml
+  - promtail/configMaps.yaml
+  - promtail/daemonset.yaml
+
 ## Aca esta la gracia: kustomize arma el ConfigMap "grafana-dashboards"
 ## leyendo los .json de dashboards/. La CLAVE de cada entrada es el nombre
 ## del archivo, igual que si lo hubieramos escrito a mano.

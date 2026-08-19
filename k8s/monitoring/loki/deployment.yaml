@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  replicas: 1
+  ## Recreate y NO RollingUpdate: el PVC es ReadWriteOnce, asi que dos
+  ## pods no pueden montarlo a la vez. Con RollingUpdate el pod nuevo
+  ## quedaria en Pending esperando un volumen que todavia tiene el viejo.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      ## La imagen corre como uid 10001. Sin fsGroup el PVC se monta
+      ## perteneciendo a root, Loki no puede escribir y entra en CrashLoop.
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+      containers:
+        - name: loki
+          image: grafana/loki:3.6.15
+          args:
+            - -config.file=/etc/loki/loki.yaml
+          ports:
+            - name: http
+              containerPort: 3100
+          ## readiness = "puedo recibir trafico?". Mientras falle, el
+          ## Service lo saca del balanceo pero NO lo reinicia.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          ## liveness = "estoy colgado?". Si falla, reinicia el contenedor.
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: loki-data
