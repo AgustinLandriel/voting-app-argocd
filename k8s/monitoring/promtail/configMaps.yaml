@@ -25,12 +25,15 @@ data:
         kubernetes_sd_configs:
           - role: pod
 
-        ## containerd escribe en formato CRI:
-        ##   2026-08-19T15:42:01Z stdout F el mensaje real
-        ## Sin este stage guardarias el timestamp y las banderas
-        ## como si fueran parte del mensaje.
+        ## El stage tiene que coincidir con el RUNTIME del nodo:
+        ##   containerd -> formato CRI: "2026-08-19T15:42:01Z stdout F mensaje"
+        ##   docker     -> formato JSON: {"log":"mensaje","stream":"stdout","time":"..."}
+        ## Este minikube corre docker (kubectl get node -o jsonpath=
+        ## '{.status.nodeInfo.containerRuntimeVersion}' -> docker://29.2.1),
+        ## asi que va el stage docker. Con el stage equivocado el mensaje
+        ## llega crudo, con el JSON entero adentro de la linea.
         pipeline_stages:
-          - cri: {}
+          - docker: {}
 
         relabel_configs:
           ## Estos 4 son los LABELS con los que despues buscas en LogQL.

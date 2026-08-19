@@ -40,14 +40,16 @@ spec:
               mountPath: /etc/promtail
             - name: positions
               mountPath: /run/promtail
-            ## /var/log/pods son SYMLINKS que apuntan a /var/log/containers
-            ## y de ahi al storage de containerd. Hay que montar los dos
-            ## lados o los symlinks quedan rotos y no lee nada.
+            ## /var/log/pods son SYMLINKS. En ESTE minikube el runtime es
+            ## docker, asi que apuntan a /var/lib/docker/containers/<id>/<id>-json.log
+            ## Hay que montar los DOS lados o el symlink queda colgado.
+            ## Verificado con:
+            ##   minikube ssh -- sudo readlink /var/log/pods/<pod>/<cont>/0.log
             - name: pods
               mountPath: /var/log/pods
               readOnly: true
             - name: containers
-              mountPath: /var/lib/containerd
+              mountPath: /var/lib/docker/containers
               readOnly: true
           resources:
             requests:
@@ -70,4 +72,4 @@ spec:
             path: /var/log/pods
         - name: containers
           hostPath:
-            path: /var/lib/containerd
+            path: /var/lib/docker/containers
