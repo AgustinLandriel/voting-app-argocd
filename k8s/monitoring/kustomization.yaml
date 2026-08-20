@@ -38,6 +38,7 @@ configMapGenerator:
     files:
       - grafana/dashboards/negocio.json
       - grafana/dashboards/tecnico.json
+      - grafana/dashboards/logs.json
 
 generatorOptions:
   ## Por defecto kustomize le pega un hash al nombre del ConfigMap

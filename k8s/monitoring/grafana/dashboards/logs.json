@@ -1,0 +1,232 @@
+{
+  "uid": "voting-logs",
+  "title": "Voting App - Logs",
+  "tags": ["voting-app", "logs"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "description": "Sale de los labels que pone Promtail via relabel_configs. Si un namespace no aparece es porque todavia no mando ni una linea.",
+        "query": { "label": "namespace", "stream": "", "type": 1, "refId": "LokiVariableQueryEditor-VariableQuery" },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "pod",
+        "label": "Pod",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "description": "Depende de $namespace: al cambiar el namespace se recalcula la lista de pods.",
+        "query": { "label": "pod", "stream": "{namespace=~\"$namespace\"}", "type": 1, "refId": "LokiVariableQueryEditor-VariableQuery" },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "search",
+        "label": "Buscar texto",
+        "type": "textbox",
+        "description": "Se inyecta en un filtro |~ \"(?i)$search\". Vacio queda como (?i), que es un regex valido que matchea todo: por eso no rompe cuando no escribis nada.",
+        "query": "",
+        "current": { "selected": false, "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Lineas de log",
+      "description": "count_over_time sobre $__range: cuenta TODAS las lineas del rango de tiempo elegido arriba. Si cambias el time picker, cambia el numero.",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" [$__range]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Lineas con error",
+      "description": "Grep sobre el TEXTO crudo, no sobre un label: Promtail no parsea niveles. Por eso se buscan varias palabras (error/fatal/exception/panic/traceback) y (?i) para ignorar mayusculas.",
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" |~ \"(?i)error|fatal|exception|panic|traceback\" [$__range]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 50 } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ritmo de logs por pod",
+      "description": "rate() sobre $__auto: $__auto es el reemplazo de $__interval para Loki (Grafana 10.3+). Alinea la ventana del range vector con el step del grafico, asi no quedan huecos. Un pico aca suele ser un CrashLoop escupiendo el mismo stack una y otra vez.",
+      "gridPos": { "h": 10, "w": 14, "x": 10, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) (rate({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" [$__auto]))",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps", "min": 0, "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10,
+            "showPoints": "never", "spanNulls": false, "axisLabel": "lineas/s",
+            "stacking": { "mode": "none", "group": "A" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pods emitiendo logs",
+      "description": "count() del numero de series, o sea cuantos pods DISTINTOS mandaron al menos una linea en el rango. Un pod que existe pero esta mudo no cuenta.",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "count(sum by (pod) (count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" [$__range])))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "% de lineas con error",
+      "description": "Division de dos count_over_time. Si el denominador es 0 (ninguna linea en el rango) NO da 0: da 'No data'. Es correcto, no es un bug del panel.",
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "expr": "100 * (sum(count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" |~ \"(?i)error|fatal|exception|panic|traceback\" [$__range])) / sum(count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" [$__range])))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 5 } ] } },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errores por pod",
+      "description": "Barras apiladas y no lineas: aca interesa CUANDO se concentran los errores y quien aporta, no la tendencia suave. Ojo que el filtro $search tambien aplica: si buscas algo, esto son los errores QUE ADEMAS matchean.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pod) (rate({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\" |~ \"(?i)error|fatal|exception|panic|traceback\" [$__auto]))",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps", "min": 0, "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 70,
+            "showPoints": "never", "spanNulls": false, "axisLabel": "errores/s",
+            "stacking": { "mode": "normal", "group": "A" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom", "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Ultimos logs",
+      "description": "El stream crudo. Clic en una linea para ver sus labels (namespace, pod, container, node). El limite de 1000 es del panel, no de Loki: si no ves lo que buscas, achica el rango de tiempo antes que subirlo.",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)$search\"",
+          "maxLines": 1000
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}
