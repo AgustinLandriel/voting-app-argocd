@@ -1,169 +1,57 @@
-<<<<<<< HEAD
 # voting-app-argocd
-=======
-# GitOps Voting App — EKS Deployment
 
-Voting app desplegada en EKS con ArgoCD, RDS Postgres y ElastiCache Redis.
+Manifiestos de Kubernetes de la **voting app**, sincronizados al cluster por **ArgoCD**. Este repo es la fuente de verdad del estado deseado: nada se aplica a mano, todo cambio entra por un commit.
 
-## Arquitectura
+La app es un clásico de tres servicios — se vota en uno, un worker procesa la cola y un tercero muestra los resultados en vivo — usado acá como excusa para armar una plataforma completa de punta a punta: infraestructura como código, CI/CD, GitOps, gestión de secretos y observabilidad.
 
-```
-Vote (LB) → Redis (ElastiCache) → Worker → Postgres (RDS) → Result (LB)
-```
+## Los tres repos
 
-| Componente | Tecnología |
-|------------|------------|
-| Orquestación | EKS (Kubernetes) |
+| Repo | Qué hay adentro |
+|------|-----------------|
+| **[voting-app-local](https://github.com/AgustinLandriel/voting-app-local)** | El código fuente de las tres apps, sus Dockerfiles, tests y la configuración de análisis estático |
+| **[voting-app-tf](https://github.com/AgustinLandriel/voting-app-tf)** | La infraestructura en Terraform: VPC, RDS, security groups, el bucket de estado, ECR y un cluster K3s sobre EC2 |
+| **voting-app-argocd** (este) | Los manifiestos de Kubernetes que ArgoCD observa y sincroniza |
+
+## Qué se construyó
+
+**GitOps con ArgoCD.** Seis `Application`, una por componente, con `prune` y `selfHeal` activados: si alguien toca algo directo en el cluster, ArgoCD lo detecta como drift y lo revierte. El pipeline nunca hace `kubectl apply` — solo actualiza el tag de imagen en este repo y ArgoCD se encarga del resto.
+
+**Kustomize** en cada directorio, para que el pipeline actualice únicamente el `newTag` con `kustomize edit set image` y los manifiestos no se toquen nunca más. Los dashboards de Grafana se generan como ConfigMaps con `configMapGenerator`, leyendo los `.json` sueltos del repo.
+
+**Secretos fuera de Git.** Las credenciales viven en AWS Secrets Manager. El External Secrets Operator las lee mediante un `SecretStore` y crea el `Secret` de Kubernetes solo, con refresco periódico. En el repo no hay una sola credencial.
+
+**Observabilidad completa**, desplegada con manifiestos propios en vez de charts empaquetados, para entender cada pieza:
+
+- **Prometheus** con service discovery vía la API de Kubernetes y su propio RBAC, descubriendo targets por anotaciones en los Services
+- **Grafana** con datasource y dashboards provisionados desde Git — uno de negocio, uno técnico y uno de logs
+- **Loki + Promtail** para agregación centralizada de logs, con Promtail como DaemonSet
+
+**Salud de los pods** declarada en todos los workloads: `readinessProbe` para que ningún pod reciba tráfico antes de estar listo, `livenessProbe` para reiniciar los que quedan colgados, `initContainers` para esperar dependencias, y `resources` con requests y limits en cada contenedor.
+
+## Tecnologías
+
+| Capa | Stack |
+|------|-------|
+| Apps | Python/Flask (vote), Node.js (worker y result) |
+| Orquestación | Kubernetes — minikube en local, EKS y K3s en AWS |
 | GitOps | ArgoCD |
-| Base de datos | RDS PostgreSQL 16 |
-| Cache / Queue | ElastiCache Redis |
-| Secrets | AWS Secrets Manager + External Secrets Operator |
-| Registry | ECR |
-| CI | GitHub Actions |
+| Manifiestos | Kustomize |
+| Datos | PostgreSQL (RDS) y Redis como cola |
+| Secretos | AWS Secrets Manager + External Secrets Operator |
+| Observabilidad | Prometheus, Grafana, Loki, Promtail |
+| Registry | Amazon ECR |
+| CI/CD | GitHub Actions, autenticado contra AWS por OIDC |
+| Infraestructura | Terraform |
 
-## Estructura del repositorio
+## Estructura
 
 ```
 k8s/
-├── infra/
-│   ├── argocd/          # ArgoCD Applications (vote, result, worker, postgres)
-│   ├── aws-keys.yaml    # Secret con credenciales AWS para ESO
-│   ├── aws-secret-store.yaml  # SecretStore de External Secrets
-│   └── eks-secret-store.yaml  # ClusterSecretStore (IRSA, para uso futuro)
-├── postgres/
-│   ├── configMaps.yaml        # Hosts de RDS y ElastiCache
-│   └── external-secret.yaml   # ExternalSecret → AWS Secrets Manager
-├── vote/
-├── result/
-└── worker/
+├── infra/argocd/     # las Application de ArgoCD, una por componente
+├── vote/             # front de votación (Python/Flask)
+├── result/           # tablero de resultados (Node.js)
+├── worker/           # procesador de la cola (Node.js)
+├── redis/            # cola de votos
+├── postgres/         # SecretStore, ExternalSecret y configuración de conexión
+└── monitoring/       # Prometheus, Grafana, Loki y Promtail
 ```
-
-## Setup inicial del cluster
-
-### 1. Acceso al cluster EKS
-
-El usuario IAM necesita estar en el trust policy del rol `eks-admin`:
-
-```bash
-# Asumir el rol eks-admin
-CREDS=$(aws sts assume-role --role-arn arn:aws:iam::325503636955:role/eks-admin --role-session-name eks-session)
-export AWS_ACCESS_KEY_ID=$(echo $CREDS | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['Credentials']['AccessKeyId'])")
-export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['Credentials']['SecretAccessKey'])")
-export AWS_SESSION_TOKEN=$(echo $CREDS | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['Credentials']['SessionToken'])")
-
-# Configurar kubeconfig
-aws eks update-kubeconfig --region us-east-2 --name voting-app
-```
-
-> El token dura 1 hora. Repetir el assume-role cuando expire.
-
-### 2. Instalar ArgoCD
-
-```bash
-kubectl create namespace argo-cd
-kubectl apply -n argo-cd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-```
-
-**Corrección necesaria post-instalación** — los ClusterRoleBindings del installer apuntan al namespace `argocd` pero instalamos en `argo-cd`:
-
-```bash
-for crb in argocd-application-controller argocd-applicationset-controller argocd-server; do
-  kubectl patch clusterrolebinding $crb --type=json \
-    -p='[{"op":"replace","path":"/subjects/0/namespace","value":"argo-cd"}]'
-done
-
-# Permisos para listar CronJobs (necesario para sync)
-kubectl patch clusterrole argocd-application-controller --type=json \
-  -p='[{"op":"add","path":"/rules/-","value":{"apiGroups":["batch"],"resources":["cronjobs","jobs"],"verbs":["get","list","watch"]}}]'
-
-kubectl rollout restart statefulset/argocd-application-controller -n argo-cd
-```
-
-### 3. Crear namespace y aplicar ArgoCD Applications
-
-```bash
-kubectl create namespace voting-app
-kubectl apply -f k8s/infra/argocd/
-```
-
-### 4. Instalar External Secrets Operator
-
-```bash
-helm repo add external-secrets https://charts.external-secrets.io
-helm install external-secrets external-secrets/external-secrets \
-  --namespace external-secrets \
-  --create-namespace \
-  --wait
-```
-
-Aplicar el SecretStore y los recursos necesarios en el namespace de la app:
-
-```bash
-kubectl apply -f k8s/infra/aws-keys.yaml -n voting-app
-kubectl apply -f k8s/infra/aws-secret-store.yaml -n voting-app
-```
-
-ArgoCD sincroniza automáticamente el `ExternalSecret` de postgres desde el repo.
-
-### 5. Acceder a ArgoCD UI
-
-```bash
-# Port-forward (requiere tener las credenciales de eks-admin exportadas)
-kubectl port-forward svc/argocd-server -n argo-cd 8080:80
-```
-
-- URL: `http://localhost:8080`
-- Usuario: `admin`
-- Contraseña: `kubectl get secret argocd-initial-admin-secret -n argo-cd -o jsonpath="{.data.password}" | base64 -d`
-
-## Endpoints de la app
-
-| Servicio | URL |
-|----------|-----|
-| Vote | `http://ae0a40f930cdb490fb14324af842989e-2106747957.us-east-2.elb.amazonaws.com` |
-| Result | `http://a8b79d1317bcc4a8e99acae79cef8d24-92088127.us-east-2.elb.amazonaws.com:3000` |
-
-## Secreto en AWS Secrets Manager
-
-El secreto `voting-app` contiene:
-
-```json
-{
-  "POSTGRES_USER": "postgres",
-  "POSTGRES_PASSWORD": "...",
-  "POSTGRES_DB": "votes"
-}
-```
-
-El `ExternalSecret` en `k8s/postgres/external-secret.yaml` lo lee y crea el Secret de Kubernetes `postgres-secret` automáticamente.
-
-## Configuración de red (Security Groups)
-
-Los Security Groups de RDS y ElastiCache deben permitir tráfico desde el SG de los nodos EKS:
-
-| Recurso | Puerto | SG origen |
-|---------|--------|-----------|
-| RDS Postgres | 5432 | SG nodos EKS |
-| ElastiCache Redis | 6379 | SG nodos EKS |
-
-> Al recrear el node group se asigna un nuevo SG. Verificar que las reglas apunten al SG correcto con `aws ec2 describe-instances --filters "Name=tag:aws:eks:cluster-name,Values=voting-app"`.
-
-## Configuración de RDS
-
-RDS usa un parameter group custom (`voting-app-postgres16`) con `rds.force_ssl = 0` para permitir conexiones sin SSL desde los pods.
-
-## Node group
-
-Las imágenes ECR son `amd64`. El node group debe usar instancias x86_64:
-
-- Tipo actual: `t3.small` (`AL2023_x86_64_STANDARD`)
-- Node group: `standard-workers-amd64`
-
-> Si se usa ARM (Graviton / t4g), las imágenes deben ser multi-arch o recompiladas para `arm64`.
-
-## Flujo GitOps
-
-1. El pipeline de GitHub Actions buildea las imágenes y las pushea a ECR
-2. Actualiza los tags de imagen en este repo (`k8s/vote/`, `k8s/result/`, `k8s/worker/`)
-3. ArgoCD detecta el cambio y sincroniza automáticamente al cluster
->>>>>>> 6179d1c (ordenamiento de yamls)
