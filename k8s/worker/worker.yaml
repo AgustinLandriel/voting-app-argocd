@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: 325503636955.dkr.ecr.us-east-2.amazonaws.com/voting-app/worker
+          image: 325503636955.dkr.ecr.us-east-2.amazonaws.com/voting-app/worker:placeholder
           ports:
             - containerPort: 3000
           resources:
