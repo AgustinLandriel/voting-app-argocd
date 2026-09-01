@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Los manifiestos de este directorio. ArgoCD detecta este archivo y aplica
+# el resultado de procesarlos, no los archivos crudos.
+resources:
+  - vote.yaml
+  - service-vote-app.yaml
+
+# El pipeline actualiza SOLO el newTag de aca abajo, con:
+#   kustomize edit set image <imagen>:<sha>
+# worker.yaml ya no se toca nunca mas.
+#
+# El "name" tiene que coincidir exacto con el image: del Deployment,
+# sin el tag: es la clave por la que Kustomize encuentra que reemplazar.
+images:
+  - name: 3325503636955.dkr.ecr.us-east-2.amazonaws.com/voting-app/vote
+    newTag: e852abb6759b8143be3ea8443c1b237f64090ea1

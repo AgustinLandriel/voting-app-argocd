@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: app-vote
-          image: 325503636955.dkr.ecr.us-east-2.amazonaws.com/voting-app/vote:ba8cbd9345dfd292f8d8f73ad8d3849ce916f332
+          image: 325503636955.dkr.ecr.us-east-2.amazonaws.com/voting-app/vote:c00f9a9bcd782ff1098d379bfaf2e023f2f6bd19
           ports:
             - containerPort: 80
           env: ##Aca sacamos el valor de el secret que creamos en AWS Secrets Manager y que se mapea en el Secret de K8s
