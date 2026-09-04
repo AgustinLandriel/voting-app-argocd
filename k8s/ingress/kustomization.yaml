@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+## Vive aparte de k8s/vote y k8s/result porque referencia Services
+## de dos Applications de ArgoCD distintas.
+resources:
+  - ingress.yaml
