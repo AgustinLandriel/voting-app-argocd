@@ -1,18 +1,3 @@
-## Para MINIKUBE !!
-
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: result
-# spec:
-#   type: NodePort
-#   selector:
-#     app: result
-#   ports:
-#     - port: 3000
-#       targetPort: 3000
-
-## Para EKS !!
 apiVersion: v1
 kind: Service
 metadata:
@@ -24,10 +9,9 @@ metadata:
     prometheus.io/port: "3000"
     prometheus.io/path: "/metrics"
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: result
   ports:
     - port: 3000
       targetPort: 3000
-      nodePort: 30090

@@ -1,0 +1,32 @@
+## Rutea por host, no por path: "result" sirve sus assets en "/", asi que
+## rutear por path (ej. /result) rompería esas rutas absolutas sin un
+## rewrite-target. sslip.io resuelve cualquier nombre que contenga una IP
+## devolviendo esa misma IP, sin tocar /etc/hosts ni registrar un dominio.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voting-app
+  namespace: voting-app
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: vote.192.168.49.2.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app-vote-service
+                port:
+                  number: 80
+    - host: result.192.168.49.2.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: result
+                port:
+                  number: 3000
