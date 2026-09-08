@@ -10,7 +10,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: vote.alandriel.site
+    - host: vote.landriel.site
       http:
         paths:
           - path: /
@@ -20,7 +20,7 @@ spec:
                 name: app-vote-service
                 port:
                   number: 80
-    - host: result.alandriel.site
+    - host: result.landriel.site
       http:
         paths:
           - path: /
