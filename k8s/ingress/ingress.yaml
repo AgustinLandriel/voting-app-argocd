@@ -7,8 +7,15 @@ kind: Ingress
 metadata:
   name: voting-app
   namespace: voting-app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - vote.landriel.site
+        - result.landriel.site
+      secretName: voting-app-tls
   rules:
     - host: vote.landriel.site
       http:
