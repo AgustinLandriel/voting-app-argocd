@@ -28,6 +28,8 @@ La app es un clásico de tres servicios — se vota en uno, un worker procesa la
 
 **Salud de los pods** declarada en todos los workloads: `readinessProbe` para que ningún pod reciba tráfico antes de estar listo, `livenessProbe` para reiniciar los que quedan colgados, `initContainers` para esperar dependencias, y `resources` con requests y limits en cada contenedor.
 
+**Ingress y TLS real.** `nginx-ingress` rutea por host (`vote.landriel.site`, `result.landriel.site`) en vez de por path, porque `result` sirve sus assets en `/` y un ruteo por path hubiera roto esas rutas absolutas sin un `rewrite-target`. Los certificados los emite **cert-manager** contra Let's Encrypt real, con un `ClusterIssuer` que resuelve el challenge DNS-01 usando la API de Cloudflare — no son self-signed. Como el cluster corre en minikube local sin IP pública, se expone a internet con **Cloudflare Tunnel** (`cloudflared`), en modo `Full (strict)` para que el tramo Cloudflare→origen también valide ese certificado real. Guía completa en `~/Downloads/guias devops/dominio-tls-cloudflare-tunnel.md`.
+
 ## Tecnologías
 
 | Capa | Stack |
@@ -39,6 +41,7 @@ La app es un clásico de tres servicios — se vota en uno, un worker procesa la
 | Datos | PostgreSQL (RDS) y Redis como cola |
 | Secretos | AWS Secrets Manager + External Secrets Operator |
 | Observabilidad | Prometheus, Grafana, Loki, Promtail |
+| Ingress y TLS | nginx-ingress, cert-manager (Let's Encrypt vía DNS-01), Cloudflare Tunnel |
 | Registry | Amazon ECR |
 | CI/CD | GitHub Actions, autenticado contra AWS por OIDC |
 | Infraestructura | Terraform |
@@ -53,5 +56,6 @@ k8s/
 ├── worker/           # procesador de la cola (Node.js)
 ├── redis/            # cola de votos
 ├── postgres/         # SecretStore, ExternalSecret y configuración de conexión
-└── monitoring/       # Prometheus, Grafana, Loki y Promtail
+├── monitoring/       # Prometheus, Grafana, Loki y Promtail
+└── ingress/          # Ingress NGINX + TLS (cert-manager) sobre landriel.site
 ```
